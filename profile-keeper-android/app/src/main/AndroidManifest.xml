@@ -5,6 +5,7 @@
         android:label="Chrome Profile Generator" android:usesCleartextTraffic="false"
         android:allowBackup="false">
         <activity android:name=".MainActivity" android:exported="true"
+            android:launchMode="singleTask" android:alwaysRetainTaskState="true"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
             <intent-filter>
