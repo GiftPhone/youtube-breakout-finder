@@ -49,8 +49,10 @@ public class MainActivity extends Activity {
     Spinner profileSelect;
     EditText address;
     LinearLayout tabStrip;
+    HorizontalScrollView tabScroll;
     FrameLayout browserFrame;
     Button desktopButton;
+    TextView browserTitle;
     TextView status;
     ValueCallback<Uri[]> uploadCallback;
 
@@ -266,61 +268,179 @@ public class MainActivity extends Activity {
             }).show();
     }
 
+
+    TextView actionLabel(String text,int size,int background,int foreground){
+        TextView v=boldText(text,size,foreground);
+        v.setGravity(Gravity.CENTER);
+        v.setBackground(rounded(background,12));
+        return v;
+    }
+    void displayTitle(){
+        if(browserTitle==null)return;
+        Profile p=profile();
+        Tab t=currentTab();
+        String title=t.title==null||t.title.trim().isEmpty()?"New tab":t.title.trim();
+        if(title.length()>18)title=title.substring(0,18)+"…";
+        browserTitle.setText(p.name+" - "+title);
+    }
     void drawUi(){
         FrameLayout shell=new FrameLayout(this);
         setContentView(shell);
         LinearLayout root=new LinearLayout(this);
-        root.setOrientation(1);root.setBackgroundColor(-1);
+        root.setOrientation(1);
+        root.setBackgroundColor(0xfff7f8fa);
         browserRoot=root;
         shell.addView(root,new FrameLayout.LayoutParams(-1,-1));
         dashboardFrame=new FrameLayout(this);
         shell.addView(dashboardFrame,new FrameLayout.LayoutParams(-1,-1));
-        LinearLayout bar=row();bar.setBackgroundColor(NAVY);bar.setPadding(dp(6),0,dp(6),0);
-        root.addView(bar,new LinearLayout.LayoutParams(-1,dp(56)));
-        TextView brand=label("‹ Profiles",13,-1);brand.setTypeface(null,1);
-        brand.setPadding(dp(7),0,0,0);
-        bar.addView(brand,new LinearLayout.LayoutParams(dp(92),-1));
-        brand.setOnClickListener(v->showDashboard());
-        profileSelect=new Spinner(this);
-        bar.addView(profileSelect,new LinearLayout.LayoutParams(0,dp(48),1));
-        Button plus=btn("+ Profile");bar.addView(plus,new LinearLayout.LayoutParams(dp(90),dp(42)));
-        plus.setOnClickListener(v->createProfile());
-        plus.setOnLongClickListener(v->{renameProfile();return true;});
-        profileSelect.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){
-            @Override public void onNothingSelected(android.widget.AdapterView<?> v){}
-            @Override public void onItemSelected(android.widget.AdapterView<?> v,View child,int idx,long id){
-                if(rebuilding||!isolated||idx>=profiles.size())return;
-                Profile p=profiles.get(idx);if(p.id.equals(selectedProfile))return;
-                saveEverything();selectedProfile=p.id;saveMetadata();showTab();
-            }
+
+        // First row: selected profile + page title and the isolation indicator.
+        LinearLayout top=row();
+        top.setPadding(dp(12),dp(3),dp(12),dp(3));
+        root.addView(top,new LinearLayout.LayoutParams(-1,dp(60)));
+        TextView exit=actionLabel("‹",27,0xffe8edf5,0xff202b3c);
+        top.addView(exit,new LinearLayout.LayoutParams(dp(37),dp(42)));
+        exit.setOnClickListener(v->showDashboard());
+        browserTitle=boldText("Chrome 1 - Google",19,0xff202124);
+        browserTitle.setSingleLine(true);
+        browserTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams titleLp=new LinearLayout.LayoutParams(0,-1,1);
+        titleLp.setMargins(dp(8),0,dp(5),0);
+        top.addView(browserTitle,titleLp);
+        TextView isolation=label(isolated?"Isolated":"Shared",12,isolated?0xff176936:0xff835a10);
+        isolation.setGravity(Gravity.CENTER);
+        isolation.setBackground(rounded(isolated?0xffe5f3e9:0xffffedcc,16));
+        top.addView(isolation,new LinearLayout.LayoutParams(dp(76),dp(36)));
+
+        // Tabs are always visible. + opens a TAB; P+ opens profile previews.
+        LinearLayout tabsRow=row();
+        tabsRow.setPadding(dp(8),dp(3),dp(8),dp(3));
+        root.addView(tabsRow,new LinearLayout.LayoutParams(-1,dp(62)));
+        tabScroll=new HorizontalScrollView(this);
+        tabScroll.setFillViewport(false);
+        tabScroll.setHorizontalScrollBarEnabled(false);
+        tabsRow.addView(tabScroll,new LinearLayout.LayoutParams(0,-1,1));
+        tabStrip=row();
+        tabScroll.addView(tabStrip,new android.widget.FrameLayout.LayoutParams(-2,-1));
+        TextView addTab=actionLabel("+",24,BLUE,-1);
+        LinearLayout.LayoutParams addLp=new LinearLayout.LayoutParams(dp(49),dp(48));
+        addLp.setMargins(dp(7),0,dp(5),0);
+        tabsRow.addView(addTab,addLp);
+        addTab.setOnClickListener(v->{
+            Profile p=profile();
+            saveEverything();
+            Tab t=new Tab();p.tabs.add(t);p.selected=t.id;
+            showTab();
         });
-        LinearLayout nav=row();nav.setPadding(dp(3),0,dp(3),0);nav.setBackgroundColor(0xffedf2f9);
-        root.addView(nav,new LinearLayout.LayoutParams(-1,dp(52)));
-        Button back=btn("‹");nav.addView(back,new LinearLayout.LayoutParams(dp(39),dp(45)));
-        back.setOnClickListener(v->{WebView w=currentWeb();if(w!=null&&w.canGoBack())w.goBack();});
-        Button forward=btn("›");nav.addView(forward,new LinearLayout.LayoutParams(dp(39),dp(45)));
-        forward.setOnClickListener(v->{WebView w=currentWeb();if(w!=null&&w.canGoForward())w.goForward();});
-        address=new EditText(this);address.setSingleLine(true);address.setTextSize(13);
-        address.setSelectAllOnFocus(true);address.setHint("Search or URL");
-        nav.addView(address,new LinearLayout.LayoutParams(0,dp(44),1));
+        TextView profilesBtn=actionLabel("P+",18,0xff31a452,-1);
+        tabsRow.addView(profilesBtn,new LinearLayout.LayoutParams(dp(51),dp(48)));
+        profilesBtn.setOnClickListener(v->showProfilePreview());
+
+        LinearLayout location=row();
+        location.setPadding(dp(10),dp(4),dp(10),dp(3));
+        root.addView(location,new LinearLayout.LayoutParams(-1,dp(65)));
+        address=new EditText(this);
+        address.setSingleLine(true);
+        address.setTextSize(14);
+        address.setSelectAllOnFocus(true);
+        address.setHint("Search or enter an address");
+        address.setPadding(dp(15),0,dp(12),0);
+        address.setBackground(rounded(0xffeceef2,18));
+        LinearLayout.LayoutParams addressLp=new LinearLayout.LayoutParams(0,dp(54),1);
+        addressLp.setMargins(0,0,dp(8),0);
+        location.addView(address,addressLp);
         address.setOnEditorActionListener((v,a,e)->{navigate();return true;});
-        Button go=btn("Go");nav.addView(go,new LinearLayout.LayoutParams(dp(43),dp(45)));
+        TextView go=actionLabel("Go",17,BLUE,-1);
+        location.addView(go,new LinearLayout.LayoutParams(dp(65),dp(54)));
         go.setOnClickListener(v->navigate());
-        Button reload=btn("↻");nav.addView(reload,new LinearLayout.LayoutParams(dp(40),dp(45)));
-        reload.setOnClickListener(v->{WebView w=currentWeb();if(w!=null)w.reload();});
-        browserFrame=new FrameLayout(this);
-        root.addView(browserFrame,new LinearLayout.LayoutParams(-1,0,1));
-        HorizontalScrollView sc=new HorizontalScrollView(this);sc.setHorizontalScrollBarEnabled(false);
-        sc.setBackgroundColor(0xffe4ebf5);root.addView(sc,new LinearLayout.LayoutParams(-1,dp(52)));
-        tabStrip=row();sc.addView(tabStrip);
-        LinearLayout foot=row();foot.setPadding(dp(8),0,dp(8),0);foot.setBackgroundColor(NAVY);
-        root.addView(foot,new LinearLayout.LayoutParams(-1,dp(44)));
-        status=label("Tabs saved automatically",11,0xffdbe5f6);
-        foot.addView(status,new LinearLayout.LayoutParams(0,-1,1));
-        desktopButton=btn("Desktop off");foot.addView(desktopButton,new LinearLayout.LayoutParams(dp(96),dp(39)));
+
+        LinearLayout controls=row();
+        controls.setPadding(dp(10),dp(3),dp(10),dp(5));
+        root.addView(controls,new LinearLayout.LayoutParams(-1,dp(55)));
+        String[] labels={"‹","›","↻","⌂"};
+        for(int i=0;i<labels.length;i++){
+            final int n=i;
+            TextView ctl=actionLabel(labels[i],22,0xffeef0f4,0xff31363e);
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(44),1);
+            lp.setMargins(0,0,dp(5),0);
+            controls.addView(ctl,lp);
+            ctl.setOnClickListener(v->{
+                WebView web=currentWeb();
+                if(web==null)return;
+                if(n==0&&web.canGoBack())web.goBack();
+                if(n==1&&web.canGoForward())web.goForward();
+                if(n==2)web.reload();
+                if(n==3)web.loadUrl("https://www.google.com/");
+            });
+        }
+        desktopButton=btn("Desktop OFF");
+        desktopButton.setAllCaps(false);
+        desktopButton.setTextSize(11);
+        desktopButton.setTextColor(BLUE);
+        desktopButton.setBackground(rounded(0xffe6eefc,12));
+        controls.addView(desktopButton,new LinearLayout.LayoutParams(dp(104),dp(44)));
         desktopButton.setOnClickListener(v->toggleDesktop());
-        Button chrome=btn("Chrome ↗");foot.addView(chrome,new LinearLayout.LayoutParams(dp(88),dp(39)));
-        chrome.setOnClickListener(v->{Tab t=currentTab();if(t!=null)openChrome(t.url);});
+
+        browserFrame=new FrameLayout(this);
+        browserFrame.setBackgroundColor(-1);
+        root.addView(browserFrame,new LinearLayout.LayoutParams(-1,0,1));
+        status=label("Ready",10,0xff787e89);
+        status.setPadding(dp(12),0,dp(6),0);
+        status.setBackgroundColor(0xfff7f8fa);
+        root.addView(status,new LinearLayout.LayoutParams(-1,dp(20)));
+        profileSelect=new Spinner(this);
+    }
+    void showProfilePreview(){
+        saveEverything();
+        ScrollView sc=new ScrollView(this);
+        sc.setFillViewport(false);
+        LinearLayout grid=new LinearLayout(this);
+        grid.setOrientation(1);
+        grid.setPadding(dp(12),dp(8),dp(12),dp(8));
+        sc.addView(grid,new ScrollView.LayoutParams(-1,-2));
+        AlertDialog dialog=new AlertDialog.Builder(this)
+            .setTitle("Switch Chrome profile")
+            .setView(sc)
+            .setNeutralButton("All profiles",(d,w)->showDashboard())
+            .setNegativeButton("Close",null).create();
+        for(int i=0;i<profiles.size();i+=2){
+            LinearLayout row=row();
+            grid.addView(row,new LinearLayout.LayoutParams(-1,dp(116)));
+            for(int j=0;j<2;j++){
+                int index=i+j;
+                if(index>=profiles.size()){
+                    row.addView(new View(this),new LinearLayout.LayoutParams(0,-1,1));continue;
+                }
+                Profile p=profiles.get(index);
+                LinearLayout card=new LinearLayout(this);
+                card.setOrientation(1);
+                card.setGravity(Gravity.CENTER);
+                card.setBackground(rounded(p.id.equals(selectedProfile)?0xffdfebff:0xfff4f5f8,14));
+                LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,dp(108),1);
+                cp.setMargins(dp(4),dp(4),dp(4),dp(4));
+                row.addView(card,cp);
+                ChromeIcon icon=new ChromeIcon();
+                card.addView(icon,new LinearLayout.LayoutParams(dp(38),dp(38)));
+                TextView name=boldText(p.name,14,0xff22252a);
+                name.setGravity(Gravity.CENTER);
+                card.addView(name,new LinearLayout.LayoutParams(-1,dp(24)));
+                TextView count=label(p.tabs.size()+" tab"+(p.tabs.size()==1?"":"s"),11,0xff696f7a);
+                count.setGravity(Gravity.CENTER);
+                card.addView(count,new LinearLayout.LayoutParams(-1,dp(20)));
+                card.setOnClickListener(v->{
+                    if(!isolated&&!p.id.equals(selectedProfile)){
+                        Toast.makeText(this,"Separate profiles unavailable on this device",Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    saveEverything();
+                    selectedProfile=p.id;
+                    updateProfileMenu();
+                    dialog.dismiss();
+                    showTab();
+                });
+            }
+        }
+        dialog.show();
     }
 
     Profile profile(){
@@ -381,28 +501,45 @@ public class MainActivity extends Activity {
         if(t.web.getParent() instanceof ViewGroup)((ViewGroup)t.web.getParent()).removeView(t.web);
         browserFrame.addView(t.web,new FrameLayout.LayoutParams(-1,-1));
         address.setText(t.url);
-        desktopButton.setText(t.desktop?"Desktop on":"Desktop off");
+        desktopButton.setText(t.desktop?"Desktop ON":"Desktop OFF");
+        displayTitle();
         renderTabs();saveMetadata();
     }
+
     void renderTabs(){
-        tabStrip.removeAllViews();Profile p=profile();
+        tabStrip.removeAllViews();
+        Profile p=profile();
+        displayTitle();
+        int index=0,activeIndex=0;
         for(Tab t:p.tabs){
+            if(t.id.equals(p.selected))activeIndex=index;
             LinearLayout cell=row();
-            cell.setBackgroundColor(t.id.equals(p.selected)?-1:0xffe4ebf5);
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(145),dp(42));
-            lp.setMargins(dp(2),0,dp(2),0);tabStrip.addView(cell,lp);
-            TextView title=label(t.title,12,NAVY);
-            title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            title.setPadding(dp(8),0,0,0);
+            cell.setPadding(dp(8),0,dp(1),0);
+            cell.setBackground(rounded(t.id.equals(p.selected)?-1:0xffe5e7ed,13));
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(144),dp(45));
+            lp.setMargins(dp(2),0,dp(4),0);
+            tabStrip.addView(cell,lp);
+            TextView title=label(t.title,12,t.id.equals(p.selected)?BLUE:0xff30353f);
+            title.setSingleLine(true);
+            title.setEllipsize(android.text.TextUtils.TruncateAt.END);
             cell.addView(title,new LinearLayout.LayoutParams(0,-1,1));
-            title.setOnClickListener(v->{if(!p.selected.equals(t.id)){saveEverything();p.selected=t.id;showTab();}});
-            TextView close=label("×",22,0xff697991);close.setGravity(Gravity.CENTER);
-            cell.addView(close,new LinearLayout.LayoutParams(dp(34),-1));
+            title.setOnClickListener(v->{
+                if(!p.selected.equals(t.id)){
+                    saveEverything();
+                    p.selected=t.id;
+                    showTab();
+                }
+            });
+            TextView close=label("×",23,0xff717780);
+            close.setGravity(Gravity.CENTER);
+            cell.addView(close,new LinearLayout.LayoutParams(dp(30),-1));
             close.setOnClickListener(v->closeTab(t));
+            index++;
         }
-        Button add=btn("+ Tab");tabStrip.addView(add,new LinearLayout.LayoutParams(dp(72),dp(42)));
-        add.setOnClickListener(v->{saveEverything();Tab t=new Tab();p.tabs.add(t);p.selected=t.id;showTab();});
+        final int target=activeIndex;
+        if(tabScroll!=null)tabScroll.post(()->tabScroll.smoothScrollTo(dp(target*150),0));
     }
+
     void closeTab(Tab t){
         Profile p=profile();
         if(t.web!=null){
@@ -433,15 +570,8 @@ public class MainActivity extends Activity {
                 if(!req.isForMainFrame())return false;
                 Uri u=req.getUrl();String scheme=u.getScheme();
                 if("https".equalsIgnoreCase(scheme)||"http".equalsIgnoreCase(scheme)){
-                    if("accounts.google.com".equalsIgnoreCase(u.getHost())&&!googleMessageShown){
-                        googleMessageShown=true;
-                        String link=u.toString();
-                        new AlertDialog.Builder(MainActivity.this).setTitle("Google sign-in")
-                            .setMessage("Google may block sign-in inside an embedded browser. Opening in Chrome is safer, but Chrome login cookies cannot return to this separate profile.")
-                            .setNegativeButton("Continue here",(d,x)->web.loadUrl(link))
-                            .setPositiveButton("Open Chrome",(d,x)->openChrome(link)).show();
-                        return true;
-                    }
+                    // Allow Google navigation to remain in this tab. Authentication limitations
+                    // are decided by Google and cannot be bypassed by this WebView.
                     return false;
                 }
                 try{startActivity(new Intent(Intent.ACTION_VIEW,u));}catch(Exception e){}
@@ -461,7 +591,9 @@ public class MainActivity extends Activity {
         w.setWebChromeClient(new WebChromeClient(){
             @Override public void onReceivedTitle(WebView web,String title){
                 if(title!=null&&!title.trim().isEmpty()){
-                    t.title=title;if(active(t))renderTabs();saveMetadata();
+                    t.title=title;
+                    if(active(t)&&inBrowser)renderTabs();
+                    saveMetadata();
                 }
             }
             @Override public void onProgressChanged(WebView web,int progress){
@@ -510,7 +642,7 @@ public class MainActivity extends Activity {
     }
     void toggleDesktop(){
         Tab t=currentTab();t.desktop=!t.desktop;setDesktop(t);
-        desktopButton.setText(t.desktop?"Desktop on":"Desktop off");
+        desktopButton.setText(t.desktop?"Desktop ON":"Desktop OFF");
         saveMetadata();if(t.web!=null)t.web.reload();
     }
     void openChrome(String url){
@@ -611,7 +743,7 @@ public class MainActivity extends Activity {
                 }
             }
         }catch(Exception e){profiles.clear();}
-        if(profiles.isEmpty()){Profile p=new Profile();p.name="Personal";profiles.add(p);selectedProfile=p.id;}
+        if(profiles.isEmpty()){Profile p=new Profile();p.name="Chrome 1";profiles.add(p);selectedProfile=p.id;nextChromeNumber=2;}
         for(Profile p:profiles){
             if(p.name.startsWith("Chrome "))try{
                 int n=Integer.parseInt(p.name.substring(7).trim());
@@ -619,6 +751,13 @@ public class MainActivity extends Activity {
             }catch(Exception ignored){}
         }
         if(!isolated)selectedProfile=profiles.get(0).id;
+    }
+    @Override protected void onSaveInstanceState(Bundle out){
+        saveEverything();
+        out.putString("selectedProfile",selectedProfile);
+        out.putString("selectedTab",profile().selected);
+        out.putBoolean("inBrowser",inBrowser);
+        super.onSaveInstanceState(out);
     }
     @Override protected void onPause(){saveEverything();super.onPause();}
     @Override protected void onStop(){saveEverything();super.onStop();}
