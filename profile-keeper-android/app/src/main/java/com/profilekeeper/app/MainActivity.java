@@ -285,6 +285,16 @@ public class MainActivity extends Activity {
     }
     void drawUi(){
         FrameLayout shell=new FrameLayout(this);
+        // Keep navigation and address controls out of Android 15/16 system bars.
+        if(Build.VERSION.SDK_INT>=30){
+            getWindow().setDecorFitsSystemWindows(false);
+            shell.setOnApplyWindowInsetsListener((view,insets)->{
+                android.graphics.Insets bars=insets.getInsets(
+                    WindowInsets.Type.statusBars()|WindowInsets.Type.navigationBars());
+                view.setPadding(bars.left,bars.top,bars.right,bars.bottom);
+                return insets;
+            });
+        }
         setContentView(shell);
         LinearLayout root=new LinearLayout(this);
         root.setOrientation(1);
