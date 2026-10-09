@@ -23,7 +23,9 @@ jobs:
         with:
           gradle-version: '8.11.1'
       - name: Install Android SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: |
+          MANAGER=$(find /usr/local/lib/android/sdk/cmdline-tools -type f -name sdkmanager | head -1)
+          "$MANAGER" "platforms;android-35" "build-tools;35.0.0"
       - name: Build debug APK
         working-directory: profile-keeper-android
         run: gradle --no-daemon :app:assembleDebug
